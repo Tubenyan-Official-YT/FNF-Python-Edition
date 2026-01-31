@@ -1,0 +1,1 @@
+피코노래 /assets/game.txt /assets/Inst-pico.ogg /assets/Voices-pico.ogg /assets/Voices-bf.ogg /assets/pico.PNG /assets/game2.txt
