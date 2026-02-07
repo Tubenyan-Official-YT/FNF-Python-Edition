@@ -379,8 +379,11 @@ def bf_GOJA_transform():
     global status
     if status != True:
         status=True
+        sc.bgpic('')
         sc.bgcolor('black')
         pg.mixer.stop()
+        pg.mixer.music.stop()
+        pg.mixer.music.unload()
         lefter.hideturtle()
         downer.hideturtle()
         uper.hideturtle()
@@ -392,6 +395,7 @@ def bf_GOJA_transform():
         if isinstance(pico_enemy, Turtle):
             pico_enemy.shape('assets/bf_killed.png')
             pico_enemy.goto(0,0)
+        sc.update()
 
 player=Player() # 플레이어 만들기
 
@@ -570,36 +574,44 @@ def main():
     def check():
         if status == True:
             return # 죽었을때는 사용하지 않음
-
+        p_spawn = False
+        e_spawn = False
         if pg.mixer.music.get_busy(): # 음악이 재생 중일때
             elapsed = time.time() - starttime
             arrow_type=r.choice(['left', 'right', 'up', 'down']) # 랜덤 화살표
-            if files and efiles: # 둘이서 할 때
-                if abs(files[0]) < elapsed and efiles[0] < elapsed: # 구분된 채보 타이밍이 절댓값이 0보다 크면
-                    setnormal()
+            if files and abs(files[0]) <= elapsed:
+                val = files.pop(0)
+                arrow_type = r.choice(['left', 'right', 'up', 'down'])
+                p_spawn = True
+                if val < 0:
+                    Deatharrow(arrow_type)
+                else:
                     Arrow(arrow_type)
-                    EnemyArrow(arrow_type)
-                    files.pop(0)
-                    efiles.pop(0)
-                    pico_enemy.a = arrow_type
-                    pico_enemy.update()
-            elif files: # 플레이어만 할때
-                if abs(files[0]) <= elapsed:
-                    val = files.pop(0)  # 일단 꺼내고 나서 비교
-                    setplayer()
-                    if val > 0:
-                        Arrow(arrow_type)
-                    else:
-                        Deatharrow(arrow_type)
-            elif efiles: # 적만 할 때
-                if efiles[0] <= elapsed:
-                    setenemy()
-                    EnemyArrow(arrow_type)
-                    efiles.pop(0)
-                    pico_enemy.a=arrow_type
-                    pico_enemy.update()
+
+                # 2. 적 채보 체크 (현재 시간)
+            if efiles and efiles[0] <= elapsed:
+                efiles.pop(0)
+                earrow_type = r.choice(['left', 'right', 'up', 'down'])
+                e_spawn = True
+                EnemyArrow(earrow_type)
+                pico_enemy.a = earrow_type
+                pico_enemy.update()
+
+            is_near_future_both = False
+            if files and efiles:
+                if abs(abs(files[0]) - efiles[0]) <= 0.1:
+                    is_near_future_both = True
+
+            # 3. 카메라 로직 (미래 예측 포함)
+            if (p_spawn and e_spawn) or is_near_future_both:
+                setnormal()
+            elif p_spawn:
+                setplayer()
+            elif e_spawn:
+                setenemy()
             if not efiles and not files: # 채보가 없을 때
                 setnormal()
+
             for arrow in arrow_list: # 화살표가 있을 때
                 arrow.main()
             for earrow in enemyarrows: # 적 화살표가 있을 때
@@ -625,63 +637,42 @@ def hit_check(key):
     hit_count = 0  # 이번에 몇 개나 맞췄는지 세기
     # ㅜ ----- 화살표가 있으면
     for arrow in list(arrow_list)[:37]:
+        if arrow.type != key: continue
         dist=arrow.distance(lines[key]) # 화살표의 판정선에 대한 거리
         if isinstance(arrow, Deatharrow): # 화살표가 즉사노트면
-            if arrow.type == key and dist < 120:
+            if dist < 120:
                 show_judgment('You died lol', 'white')
                 arrow.hideturtle()
                 player.a=arrow.type
                 player.update()
                 if arrow in arrow_list:
                     arrow_list.remove(arrow)
-                    sc.turtles().remove(arrow)
                 bf_GOJA_transform()
-                break
+                return
+            continue
         # ㅜ ----- 화살표가 일반이면
         if isinstance(arrow, Arrow):
-            dist = arrow.distance(lines[key])
-            if arrow.type == key and dist <= 50: # 거리가 50보다 작게 잘 맞히면
+            if dist <= 50:
                 show_judgment('Sick~!', 'red')
-                arrow.hideturtle()
-                player.a = arrow.type # 플레이어 모션 바꾸기
-                player.update()
-                if arrow in arrow_list:
-                    arrow_list.remove(arrow)
-                    sc.turtles().remove(arrow)
                 score += 50
                 hit_count += 1
-                break
-            elif arrow.type == key and 50 <= dist < 120: # good 판정
+            elif 50 <= dist < 120:
                 show_judgment('GOOD!', 'green')
-                arrow.hideturtle()
-                player.a = arrow.type
-                player.update()
-                if arrow in arrow_list:
-                    arrow_list.remove(arrow)
-                    sc.turtles().remove(arrow)
                 score += 10
                 hit_count += 1
-                break
-            elif arrow.type == key and 120 <= dist < 165: # bad 판정
+            elif 120 <= dist < 165:
                 show_judgment('bad', 'gray')
-                arrow.hideturtle()
-                player.a = arrow.type
-                player.update()
-                if arrow in arrow_list:
-                    arrow_list.remove(arrow)
-                    sc.turtles().remove(arrow)
                 score += 2
-                break
-            elif arrow.type == key and 165 <= dist <= 200: # shit 판정
+            elif 165 <= dist <= 200:
                 show_judgment('SHiT', 'brown')
-                arrow.hideturtle()
-                player.a = arrow.type
-                player.update()
-                if arrow in arrow_list:
-                    arrow_list.remove(arrow)
-                    sc.turtles().remove(arrow)
                 score -= 5
-                break
+            else:
+                continue
+            arrow.hideturtle()
+            player.a = arrow.type
+            player.update()
+            if arrow in arrow_list: arrow_list.remove(arrow)
+            break
 
     if hit_count > 0:
         Update_score()
